@@ -1,0 +1,129 @@
+---
+title: "HR Data Filtering"
+author: "Teague"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(fs)
+library(here)
+library(lubridate)
+```
+
+### Quality Check Data
+Àsgeir from Star:Oddi sent some filtering suggestions based on a quick pass through the data. He suggests removing anything with a QI  = 3, 2 and above 700 bpm or below 100 bpm. Thomas & Suthers 1972 found in-flight heart rates of smaller hastatus of 780 bpm, so I'll set a max bpm to 800.
+
+
+#### Read in data & format columnds, IDs, etc
+```{r}
+files <- dir_ls(paste0(here(), "/rawData/heartRateDat"), full.names = T) #get a list of the file lcoations
+
+#The following will go thorugh that list of file names using purr (map_dfr) to read in a file, separate it by ;, keep the filename, and then add in the tag ID.
+hrDat <- files %>% 
+  map_dfr(read_delim, delim = ";", .id="source") %>%
+  mutate(tagID = str_sub(source, -15, -8))
+
+#I want to rename the columsn
+names(hrDat) <- c("source", "obsNumber", "timestamp", "temp", "hr.bpm", "QI", "tagID"  )
+
+#And convert the Date-Time into a usable timestamp, and temperature into 
+hrDat$timestamp <- dmy_hms(hrDat$timestamp, tz = "America/Panama")
+
+#And I can't change the decimal separator from comma to . any more, so I'm going to divide all of the values by 100 to get the actual temperature. I sunk way too much time trying to fix the read_delim.\
+hrDat$temp <- hrDat$temp/100
+
+```
+
+### Data quality for each bat
+
+The Quality Index (QI) ranges from 0 (good) to 3 (bad). 
+
+```{r}
+hrDat %>% 
+  ggplot()+
+  geom_histogram(aes(x = QI))+
+  facet_wrap(~tagID)+
+  theme_bw()
+
+```
+
+And distributions of heart rate and body temperature
+
+```{r}
+
+hrDat %>% 
+  ggplot()+
+  geom_density(aes(x = hr.bpm))+
+  facet_wrap(~tagID)+
+  theme_bw()
+
+hrDat %>% 
+  ggplot()+
+  geom_density(aes(x = temp))+
+  facet_wrap(~tagID)+
+  theme_bw()
+
+```
+
+Àsgeir suggests removing anything with a QI  = 3, 2 and above 700 bpm or below 100 bpm. Thomas & Suthers 1972 found in-flight heart rates of smaller hastatus of 780 bpm, so I'll set a max bpm to 800. I'll first mark the data and keep / remove to filter out later
+
+```{r}
+
+hrDat <- hrDat %>% mutate(quality = if_else(QI %in% c("0", "1") & hr.bpm < 800 & hr.bpm > 100, "keep", "drop") )
+
+hrDat %>%
+  ggplot()+
+  geom_histogram(aes(x = quality), stat= "count")+
+  facet_wrap(~tagID)+
+  theme_bw()
+
+
+```
+
+Plotting distributions of heart rate by keep & drop per bat. From these small plots it's not super clear if there is a bunch of bias in the quality estimates at given heart rates. But it looks like some decent peaks are in the median of the keep category, so this is pretty good. It's not all just high or low HR that is crappy.
+
+```{r}
+hrDat %>%
+  ggplot()+
+  geom_density(aes(x = hr.bpm, group = quality, fill = quality), alpha = 0.5)+
+  facet_wrap(~tagID)+
+  theme_bw()
+```
+
+One last bit I want to see is the distribution of QIs across heart rates
+
+
+```{r}
+
+hrDat %>%
+  ggplot()+
+  geom_density(aes(x = hr.bpm, group = as.character(QI), fill = as.character(QI)), alpha = 0.5)+
+  scale_fill_viridis_d()+
+  facet_wrap(~tagID)+
+  theme_bw()
+
+
+```
+
+QI 3 is mostly concentrated at the very low heart rates with a slight bump at the very high HR. We'll need to do a little more digging into the full ECGs that are labeled as QI=2, b/c from this plot they look like they are probably reliable.
+
+But we can filter out the drop data just to focus on the highest quality data possible. This will drop the original 101036 obs to 78399 observations, or a loss of ~22% of the data.
+
+```{r}
+bestHR <- hrDat %>% filter(quality == "keep")
+
+#write_csv(bestHR, file = paste0(here(), "/processedData/filteredHR.csv"))
+
+library(plotly)
+
+p <- bestHR %>% 
+  ggplot()+
+  geom_line(aes(x = timestamp, y = hr.bpm, color = tagID))+
+  theme_bw()
+
+ggplotly(p)
+```
+
