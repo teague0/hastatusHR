@@ -1,0 +1,103 @@
+---
+title: "Heart Rate Analysis"
+author: "Teague"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(here)
+library(lubridate)
+library(cowplot)
+library(kableExtra)
+```
+
+### <i>Phyllostomus hastatus </i> heart rate exploration
+
+These data have beeen cleaned to filter out QI scores of 3 & 2, as well as heart rates lower than 100 or higher than 800. Let's see some basic statistics for each individual
+
+```{r }
+hr <- read_csv(paste0(here(), "/processedData/filteredHR.csv"))
+hr$timestamp <- force_tz(hr$timestamp, tz = "America/Panama") #make sure that the time zone is set correctly. These data should be recorded in EST and were read in at UTC. force_tz resets the time zone. If with_tz were used it would re-project the time into EST from UTC (so subtract 5 hours).
+
+tsum <- hr %>% group_by(tagID, date(timestamp)) %>%
+  summarize(meanHR = round(mean(hr.bpm),0),
+            medianHR = round(median(hr.bpm), 0),
+            minHR = min(hr.bpm),
+            maxHR = max(hr.bpm),
+            meanTemp = round(mean(temp),2),
+            medianTemp = round(median(temp),2),
+            minTemp = min(temp),
+            maxTemp = max(temp))
+kable(tsum)
+
+```
+
+
+
+
+I'm going to kick out pdfs of every day for each bat.
+```{r}
+days <- unique(date(hr$timestamp))
+bats <- unique(hr$tagID)
+
+for (i in 1:length(days)){
+  day = days[i]
+  tmp <- hr %>% filter(date(timestamp) == day)
+  for (j in 1: length(bats)){
+    bat = bats[j]
+    plotdat <- tmp %>% filter(tagID == bat)
+      p.hr <- plotdat %>% 
+        ggplot()+
+        geom_rect(xmin = ymd_hms(paste(day, "00:00:00"), tz= "America/Panama"),
+            xmax = ymd_hms(paste(day, "06:00:00"), tz= "America/Panama"), ymin=-Inf, ymax=Inf,
+            alpha=0.5,fill="grey90")+
+        geom_rect(xmin = ymd_hms(paste(day, "19:00:00"), tz= "America/Panama"),
+            xmax = ymd_hms(paste(day, "24:00:00"), tz= "America/Panama"), ymin=-Inf, ymax=Inf,
+            alpha=0.5,fill="grey90")+
+        geom_line(aes(x = timestamp, y = hr.bpm))+
+        ggtitle(paste(day, bat))+
+        theme_cowplot()
+      
+      p.tb <- plotdat %>% 
+        ggplot()+
+        geom_rect(xmin = ymd_hms(paste(day, "00:00:00"), tz= "America/Panama"),
+            xmax = ymd_hms(paste(day, "06:00:00"), tz= "America/Panama"), ymin=-Inf, ymax=Inf,
+            alpha=0.5,fill="grey90")+
+        geom_rect(xmin = ymd_hms(paste(day, "19:00:00"), tz= "America/Panama"),
+            xmax = ymd_hms(paste(day, "24:00:00"), tz= "America/Panama"), ymin=-Inf, ymax=Inf,
+            alpha=0.5,fill="grey90")+
+        geom_line(aes(x = timestamp,  y = temp), color = "red")+
+        theme_cowplot()
+      
+      ggsave(paste0(here(), "/output/", bat, day, ".pdf"), plot_grid(p.hr, p.tb, ncol = 1), 
+             width = 11, height = 6, units = "in")
+  }
+}
+
+p.hr <- hr %>% filter(date(timestamp) == day & tagID == bats) %>% 
+  ggplot()+
+  geom_rect(xmin = ymd_hms(paste(day, "00:00:00"), tz= "America/Panama"),
+            xmax = ymd_hms(paste(day, "06:00:00"), tz= "America/Panama"), ymin=-Inf, ymax=Inf, alpha=0.5,fill="grey90")+
+  geom_rect(xmin = ymd_hms(paste(day, "19:00:00"), tz= "America/Panama"),
+            xmax = ymd_hms(paste(day, "24:00:00"), tz= "America/Panama"), ymin=-Inf, ymax=Inf, alpha=0.5,fill="grey90")+
+  geom_line(aes(x = timestamp, y = hr.bpm))+
+  ggtitle(paste(day, bat))
+    theme_cowplot()
+
+p.tb <- hr %>% filter(date(timestamp) == day & tagID == "1UHL1865") %>% 
+  ggplot()+
+  geom_rect(xmin = ymd_hms(paste(day, "00:00:00"), tz= "America/Panama"),
+            xmax = ymd_hms(paste(day, "06:00:00"), tz= "America/Panama"), ymin=-Inf, ymax=Inf, alpha=0.5,fill="grey90")+
+  geom_rect(xmin = ymd_hms(paste(day, "19:00:00"), tz= "America/Panama"),
+            xmax = ymd_hms(paste(day, "24:00:00"), tz= "America/Panama"), ymin=-Inf, ymax=Inf, alpha=0.5,fill="grey90")+
+  geom_line(aes(x = timestamp, y = temp), color = "red")+
+    theme_cowplot()
+
+plot_grid(p.hr, p.tb, ncol = 1)
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

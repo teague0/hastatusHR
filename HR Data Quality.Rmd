@@ -112,8 +112,12 @@ QI 3 is mostly concentrated at the very low heart rates with a slight bump at th
 
 But we can filter out the drop data just to focus on the highest quality data possible. This will drop the original 101036 obs to 78399 observations, or a loss of ~22% of the data.
 
+One last filtering bit that I forgot to do was to cut off the data after the bats were recaptured. Bats were recaptures on 2023-08-17 and we entered the cave at 8 am. One bat was rogue until the afternoon, but we'll trim the data to 9 am. Data goes from 78399 to 73435 observations.
+
 ```{r}
 bestHR <- hrDat %>% filter(quality == "keep")
+bestHR <- bestHR %>% filter(timestamp < "2023-08-17 09:00")
+
 
 #write_csv(bestHR, file = paste0(here(), "/processedData/filteredHR.csv"))
 
@@ -125,5 +129,14 @@ p <- bestHR %>%
   theme_bw()
 
 ggplotly(p)
+```
+
+One last filtering bit that I forgot to do was to cut off the data after the bats were recaptured. Bats were recaptures on 2023-08-17 and we entered the cave at 8 am. One bat was rogue until the afternoon, but we'll trim the data to 8 am 
+
+
+```{r}
+
+
+
 ```
 
