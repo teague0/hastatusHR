@@ -1,0 +1,268 @@
+---
+title: "Hastatus ACC & Flight"
+author: "Teague"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(pacman)
+p_load(tidyverse, data.table, plotly, here, zoo, roll, lubridate, accelerateR, gghalves)
+options(digits.secs = 3)
+
+```
+
+### Hastatus flight - VeDBA & flight durations
+
+
+#### VeDBA calculation
+
+I was a little curious when I saw that VeDBA was only a single value every second, instead of a rolling calculation where you can see how VeDBA change with every single 1/25th of a second. So this is recalcuated. 
+
+Also, it's more efficient to write a function that can be applied everywhere instead of having to hard code each variable. 
+
+
+Here is a function that specifies sampling frequency and the duration of the window to calculate static ACC so we have only dynamic ACC to calculate instantaneous VeDBA, and then we can smooth over the same window. This gives flexibility in the size of the window & type of ACC sampling used. Be careful to check the capitalization of the XYZ axes.
+
+```{r}
+vedba <- function(acc, samplingFreq, windowSize){
+  #Find mean of each axis over the sampling window. This is used as static ACC 
+  acc$x0 <- roll_mean(acc$X, width = samplingFreq*windowSize, na_restore = TRUE)
+  acc$y0 <- roll_mean(acc$Y, width = samplingFreq*windowSize, na_restore = TRUE)
+  acc$z0 <- roll_mean(acc$Z, width = samplingFreq*windowSize, na_restore = TRUE)
+  
+  #Subtract off the static from total ACC to find dynamic ACC
+  acc$x1 <- acc$X - acc$x0
+  acc$y1 <- acc$Y - acc$y0
+  acc$z1 <- acc$Z - acc$z0
+  
+  #Calculate ODBA & VeDBA
+  acc$ODBA <- abs(acc$x1) + abs(acc$y1) + abs(acc$z1)
+  acc$VeDBA <- sqrt((acc$x1)^2 + (acc$y1)^2 + (acc$z1)^2)
+  acc$VeDBA1s <- roll_mean(acc$VeDBA, width = windowSize, na_restore = TRUE)
+  acc$VeDBA2s <- roll_mean(acc$VeDBA, width = windowSize*2, na_restore = TRUE)
+  return(acc)
+}
+```
+
+Use that function to add a continuously smoothed VeDBA and kick out a new data frame. There will be some now columns added as well for the different steps in calculations
+
+```{r}
+hours3 <- fread(here("processedData", "travisData", "ThreeHours.csv"))
+
+#add in VeDBA
+dat <- vedba(hours3, 25, 1)
+```
+
+Plot what we have. We can see VeDBA over time.
+
+```{r}
+p <- dat %>% 
+  ggplot()+
+  geom_path(aes(x = Timestamp, y = VeDBA1s))+
+  theme_bw()
+
+ggplotly(p)
+```
+And what the overall distribution of VeDBA values looks like
+```{r}
+dat %>% 
+  ggplot()+
+  geom_histogram(aes(x= VeDBA1s), bins = 60)+
+  theme_bw()
+```
+And how the 1 second VeDBA Travis calculated compares to the rolling VeDBA. I added an line for y = x to show what you'd expect if both methods were equal. Previous method is under-estimating VeDBA and not capturing the full range of available values. 
+```{r}
+dat %>% 
+  ggplot()+
+  geom_point(aes(x =`VeDBA:1s`, y = VeDBA1s))+
+  geom_abline(slope = 1, intercept = 0)+
+  coord_fixed()+
+  lims(x = c(0, 6),
+       y = c(0,6))+
+  labs(x = "Travis VeDBA 1s", y = "Teague VeDBA 1s")+
+  theme_bw()
+```
+
+### Flight classification
+From this revised VeDBA calculation I'm not sure that a threshold of 1.4 is correct to ID flight. Let's have a quick look at the full data set.
+
+```{r}
+p0 <- ggplot(dat)+
+  geom_path(aes(x = Timestamp, y = X), color = "red", alpha = 0.5)+
+  geom_path(aes(x = Timestamp, y = Y), color = "green", alpha = 0.5)+
+  geom_path(aes(x = Timestamp, y = Z), color = "blue", alpha = 0.5)+
+  geom_path(aes(x = Timestamp, y = VeDBA1s), color = "black", alpha = 0.4)+
+  theme_bw()
+ggplotly(p0)
+```
+
+
+
+
+I'll pull out a few sections from the first plot to see what it looks like in the transition between flying and roosting.
+
+```{r}
+#big values in the start. Definite flight
+d0 <- dat %>% filter(Timestamp > ymd_hms("2023-08-14 20:27:00") & Timestamp < ymd_hms("2023-08-14 20:28:00"))
+d4 <- dat %>% filter(Timestamp > ymd_hms("2023-08-14 20:31:15") & Timestamp < ymd_hms("2023-08-14 20:32:11"))
+d1 <- dat %>% filter(Timestamp > ymd_hms("2023-08-14 20:45:54") & Timestamp < ymd_hms("2023-08-14 20:56:00"))
+
+
+#some intermittent movement after 22:00
+d2 <- dat %>% filter(Timestamp > ymd_hms("2023-08-14 22:07:51") & Timestamp < ymd_hms("2023-08-14 22:17:00"))
+
+d3 <- dat %>% filter(Timestamp > ymd_hms("2023-08-14 22:39:33") & Timestamp < ymd_hms("2023-08-14 22:50:00"))
+
+p1 <- ggplot(d1)+
+  geom_path(aes(x = Timestamp, y = X), color = "red", alpha = 0.5)+
+  geom_path(aes(x = Timestamp, y = Y), color = "green", alpha = 0.5)+
+  geom_path(aes(x = Timestamp, y = Z), color = "blue", alpha = 0.5)+
+  geom_path(aes(x = Timestamp, y = VeDBA1s), color = "black", alpha = 0.7)+
+  theme_bw()
+ggplotly(p1)  
+```
+
+This is a bat hanging and probably scratching to make the repeated up and down of acceleration that I thought looked like flying
+```{r}
+p2 <- ggplot(d2)+
+  geom_path(aes(x = Timestamp, y = X), color = "red", alpha = 0.5)+
+  geom_path(aes(x = Timestamp, y = Y), color = "green", alpha = 0.5)+
+  geom_path(aes(x = Timestamp, y = Z), color = "blue", alpha = 0.5)+
+  geom_path(aes(x = Timestamp, y = VeDBA1s), color = "black", alpha = 0.7)+
+  theme_bw()
+ggplotly(p2)  
+```
+
+This bat is mostly roosting with some scratching around. 
+```{r}
+p3 <- ggplot(d3)+
+  geom_path(aes(x = Timestamp, y = X), color = "red", alpha = 0.5)+
+  geom_path(aes(x = Timestamp, y = Y), color = "green", alpha = 0.5)+
+  geom_path(aes(x = Timestamp, y = Z), color = "blue", alpha = 0.5)+
+  geom_path(aes(x = Timestamp, y = VeDBA2s), color = "black", alpha = 0.7)+
+  theme_bw()
+ggplotly(p3)  
+```
+
+Scrolling through those blocks of times I think that we need to use 2 variables to classify flight. A combination of the smoothed y axis (y0) maybe greater than -0.7, and a 1s VeDBA greater than 0.8  might be the right method. Here is what the first ACC figure looks like with the smoothed y0. X (red) & Z (blue) are raw values, and y (green) and VeDBA (black) are smoothed over 1s. Smoothing the y really makes a big difference for showing head up / head down.
+
+```{r}
+p4 <- ggplot(d1)+
+  geom_path(aes(x = Timestamp, y = X), color = "red", alpha = 0.5)+
+  geom_path(aes(x = Timestamp, y = y0), color = "green", alpha = 0.5)+
+  geom_path(aes(x = Timestamp, y = Z), color = "blue", alpha = 0.5)+
+  geom_path(aes(x = Timestamp, y = VeDBA1s), color = "black", alpha = 0.7)+
+  theme_bw()
+ggplotly(p4)  
+```
+
+
+
+*But, we need to put the basic work into nailing the thresholds. To be sure, you need to 1) Take 1 night each from 3 bats. Go through and manually classify some sections of each into times that are obviously flying (flying), obviously roosting doing nothing (roost), and then when they are roosting but crawling around / scratching / whatever (active).* This will give us an idea of the distribution of the values for those behaviors, and I need to see plots of 1s smoothed VeDBA for these manually classified behaviors. Ideally, a couple of plots like those above (time on X, then acc and VeDBA on y), and box plots that show VeDBA for each behavior for each bat.
+
+### Flight durations
+
+As a first pass, rough classification I'm going to classify flight using 1s smoothed y > -0.5 & *2s* smoothed VeDBA > 0.2. Using 2s VeDBA brings up the average a bit compared to 1s VeDBA in the plot below. Z is blue, y0 is green, 1s VeDBA is black, 2s VeDBA is purple.
+
+```{r}
+p5 <- ggplot(d1)+
+  geom_path(aes(x = Timestamp, y = Z), color = "blue", alpha = 0.5)+
+  geom_path(aes(x = Timestamp, y = VeDBA1s), color = "black", alpha = 0.5)+
+  geom_path(aes(x = Timestamp, y = VeDBA2s), color = "purple", alpha = 0.3)+
+  geom_path(aes(x = Timestamp, y = y0), color = "green", alpha = 0.5)+
+  theme_bw()
+ggplotly(p5)  
+```
+
+I'll classify flight, and then if there are some small blips where they probably are flying, but change posture to drop down to the trees or have a 1-2 s glide.
+
+```{r}
+dat <- dat %>% mutate(behave = ifelse(y0 > -0.5 & VeDBA2s > 0.2, "flying", "not flying"))
+
+#re-extract those example chunks
+#big values in the start. Definite flight
+d0 <- dat %>% filter(Timestamp > ymd_hms("2023-08-14 20:27:00") & Timestamp < ymd_hms("2023-08-14 20:28:00"))
+d4 <- dat %>% filter(Timestamp > ymd_hms("2023-08-14 20:31:15") & Timestamp < ymd_hms("2023-08-14 20:32:11"))
+d1 <- dat %>% filter(Timestamp > ymd_hms("2023-08-14 20:45:54") & Timestamp < ymd_hms("2023-08-14 20:56:00"))
+
+#some intermittent movement after 22:00
+d2 <- dat %>% filter(Timestamp > ymd_hms("2023-08-14 22:07:51") & Timestamp < ymd_hms("2023-08-14 22:17:00"))
+
+d3 <- dat %>% filter(Timestamp > ymd_hms("2023-08-14 22:39:33") & Timestamp < ymd_hms("2023-08-14 22:50:00"))
+
+```
+
+We can look at how well this did on that longer sequence of mixed roosting and flight. This quick plot shows that there are some small blips that are probably misclassified, and then there is some confusion toward the end of the flying sequence that is going to need some closer inspection to see really what's happening. 
+
+```{r}
+p.bcp <- ggplot(d1)+
+  geom_point(aes(x = Timestamp, y = behave))+
+  theme_bw()
+p.bcp
+```
+
+To smooth through this, we need to create behavioral changepoints and sequences to get sequence length for durations and to smooth behaviors if needed. `bcp` is a quick function to do that across whichever data you have. It needs the name of the dataframe and the column where the behaviors are named.
+```{r}
+bcp <- function(df, behave){
+  
+  #Create placeholder columns
+  df$behaveSame <- NA
+  df$seqNo <- NA
+  
+  #Compare following row to previous row to see if there has been a change. 0 for same, 1 for change
+  for(i in 2:length(df$behaveSame)-1){
+    j = i+1
+    df$behaveSame[j] = ifelse(df$behave[j] == df$behave[i], 0, 1)
+  }
+  
+  df$behaveSame[which(is.na(df$behaveSame))] <- 0 #mark all NAs as 0
+  
+  #Count up the sequences. 1 is added so that it starts at 1 and not 0
+  df$seqNo <- cumsum(df$behaveSame)+1
+  return(df)
+}
+
+#Start with 0 as a baseline. No change is 0, change is 1. This will let us count up with a cumulative sum. Depending on the number of rows, this could take awhile. 
+d0 <- bcp(d0, d0$behave) #this is fast
+d1 <- bcp(d1, d1$behave) #this take about 5 secs
+```
+
+Summarize the duration of the sequences. The vertical line in the plot is 1 second -- there are a lot of 1 s or shorter sequences.
+
+```{r}
+durs <- d1 %>% group_by(seqNo) %>% 
+  summarize(duration = as.numeric(max(Timestamp) - min(Timestamp)),
+            behave = unique(behave))
+
+durs %>% ggplot()+
+  geom_histogram(aes(x = duration), binwidth = 0.5)+
+  geom_vline(xintercept = 1)+
+  theme_bw()
+```
+
+And we can check on what the distribution of y0 and VeDBA look like for those sequences.
+
+```{r}
+d1 %>% select(behave, y0, VeDBA2s) %>% 
+  pivot_longer(!behave, 
+               names_to = "variable",
+               values_to = "accValue") %>% 
+ggplot()+
+  geom_half_violin(aes(x = variable, y = accValue))+
+  geom_half_point(aes(x = variable, y = accValue))+
+  theme_bw()
+```
+
+
+
+Add the durations back to the main dataframe and start aggregating sequences.
+
+```{r}
+ 
+
+
+```
+
+  
