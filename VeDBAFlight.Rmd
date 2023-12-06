@@ -41,12 +41,71 @@ vedba <- function(acc, samplingFreq, windowSize){
   acc$pitch <- atan(acc$staticX/(sqrt((acc$staticY^2)+(acc$staticZ^2))))*(180/pi)
   
   #Calculate ODBA & VeDBA
-  acc$ODBA <- abs(acc$x1) + abs(acc$y1) + abs(acc$z1)
+  acc$ODBA <- abs(acc$dynamicX) + abs(acc$dynamicY) + abs(acc$dynamicY)
   acc$VeDBA <- sqrt((acc$dynamicX)^2 + (acc$dynamicY)^2 + (acc$dynamicZ)^2)
   acc$VeDBA1s <- roll_mean(acc$VeDBA, width = windowSize, na_restore = TRUE)
   acc$VeDBA2s <- roll_mean(acc$VeDBA, width = windowSize*2, na_restore = TRUE)
   return(acc)
 }
+
+###########################################
+# From Patterson et al 2019  DOI: 10.1002/ece3.4740 
+# Function to calculate peak frequency in a time series of data over a moving 
+# window. If the heave axis is used, the ouput is the wing beat frequency.
+# The data are output as a vector or frequencies. The code is designed to only 
+# calculate peak frequency at regular sample intervals to reduce 
+# computation time; however, peak frequency can be calculated for each row by 
+# setting sample = 1.
+
+
+getFrequency <- function(variable, WBFwindow, frequency, sample, threshold) {
+  # Track processing time
+  ptm <- proc.time()
+  
+  # Get the length of the variable and create output object
+  axis <- variable
+  lenVar <- length(variable)
+  output <- rep(NA, lenVar)
+  
+  # Get values needed for the loop from user inputs
+  sampInterval <- frequency * sample
+  windowWidth <- frequency * WBFwindow
+  midPoint <- floor(sampInterval/2)
+  calcs <- seq(from = (1 + (windowWidth/2)), to = (lenVar - (windowWidth)/2), by = sampInterval)
+  
+  for (i in calcs) {
+    # Prepare data for fft
+    sampInt<- (i-floor(windowWidth/2)):((i-floor(windowWidth/2)) + windowWidth - 1)
+    ddd <- axis[sampInt]
+    ddd <- ts(data = ddd, start = 1, frequency = frequency)
+    # Create indices for outputting the data
+    halfwidth <- ceiling(length(sampInt)/2)
+    freqs <- ((2:halfwidth/2)/(halfwidth))/(1/frequency)
+    # calculate fft
+    pows <- abs(fft(ddd)[2:halfwidth])^2
+    # Select maximum frequency
+    val <- freqs[which(pows == max(pows))[1]] 
+    # Exclude frequencies with very low amplitudes
+    if (IQR(ddd) < threshold) val <- 0
+    # Write frequency value to output vector, filling all rows within the sample interval
+    myInt <- (i - midPoint):((i - midPoint) + (sampInterval - 1))
+    output[myInt] <- rep(val, sampInterval)
+    # Print a progress message
+    trackProg <- seq(from = 1, to = length(calcs), length.out = 11)[2:11]
+    if (i %in% calcs[trackProg]) {
+      print(paste("Finished processing:", round((i/lenVar) * 100), "% at", format(Sys.time(), "%T")))
+      
+    }
+    
+  }
+  
+  prc.time <- round((proc.time() - ptm)[[3]], digits = 3)
+  print(paste("Processing time:", prc.time))
+  
+  return(output)
+}
+
+
 ```
 
 Use that function to add a continuously smoothed VeDBA and kick out a new data frame. There will be some now columns added as well for the different steps in calculations
@@ -123,6 +182,7 @@ p1 <- ggplot(d1)+
   geom_path(aes(x = Timestamp, y = Y), color = "green", alpha = 0.5)+
   geom_path(aes(x = Timestamp, y = Z), color = "blue", alpha = 0.5)+
   geom_path(aes(x = Timestamp, y = VeDBA1s), color = "black", alpha = 0.7)+
+  #geom_path(aes(x = Timestamp, y = pitch), color = "purple", alpha = 0.7)+
   theme_bw()
 ggplotly(p1)  
 ```
