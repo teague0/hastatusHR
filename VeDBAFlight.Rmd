@@ -26,6 +26,9 @@ Also, it's more efficient to write a function that can be applied everywhere ins
 Here is a function that specifies sampling frequency and the duration of the window to calculate static ACC so we have only dynamic ACC to calculate instantaneous VeDBA, and then we can smooth over the same window. This gives flexibility in the size of the window & type of ACC sampling used. Be careful to check the capitalization of the XYZ axes.
 
 ```{r}
+
+#This takes in the dataframe with the ACC data, specifies the sampling frequency the data were recorded at, and then the window size that data should be smoothed over. If window size is set to 1 this defaults to the sampling frequency.
+
 vedba <- function(acc, samplingFreq, windowSize){
   #Find mean of each axis over the sampling window. This is used as static ACC 
   acc$staticX <- roll_mean(acc$X, width = samplingFreq*windowSize, na_restore = TRUE)
@@ -45,6 +48,7 @@ vedba <- function(acc, samplingFreq, windowSize){
   acc$VeDBA <- sqrt((acc$dynamicX)^2 + (acc$dynamicY)^2 + (acc$dynamicZ)^2)
   acc$VeDBA1s <- roll_mean(acc$VeDBA, width = windowSize, na_restore = TRUE)
   acc$VeDBA2s <- roll_mean(acc$VeDBA, width = windowSize*2, na_restore = TRUE)
+  acc$pitch1s <- roll_mean(acc$pitch, width = windowSize, na_restore = TRUE)
   return(acc)
 }
 
