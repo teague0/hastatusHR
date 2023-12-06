@@ -27,7 +27,7 @@ Here is a function that specifies sampling frequency and the duration of the win
 
 ```{r}
 
-#This takes in the dataframe with the ACC data, specifies the sampling frequency the data were recorded at, and then the window size that data should be smoothed over. If window size is set to 1 this defaults to the sampling frequency.
+#This takes in the dataframe with the ACC data, specifies the sampling frequency the data were recorded at, and then the window size that data should be smoothed over. If window size is set to 1 this defaults to the sampling frequency. These analyses all assume that Z = heave , Y = surge, X = sway
 
 vedba <- function(acc, samplingFreq, windowSize){
   #Find mean of each axis over the sampling window. This is used as static ACC 
@@ -41,7 +41,7 @@ vedba <- function(acc, samplingFreq, windowSize){
   acc$dynamicZ <- acc$Z - acc$staticZ
   
   #Calculate pitch
-  acc$pitch <- atan(acc$staticX/(sqrt((acc$staticY^2)+(acc$staticZ^2))))*(180/pi)
+  acc$pitch <- atan(acc$staticY/(sqrt((acc$staticX^2)+(acc$staticZ^2))))*(180/pi)
   
   #Calculate ODBA & VeDBA
   acc$ODBA <- abs(acc$dynamicX) + abs(acc$dynamicY) + abs(acc$dynamicY)
@@ -131,6 +131,7 @@ p <- dat %>%
 
 ggplotly(p)
 ```
+
 And what the overall distribution of VeDBA values looks like
 ```{r}
 dat %>% 
@@ -138,7 +139,8 @@ dat %>%
   geom_histogram(aes(x= VeDBA1s), bins = 60)+
   theme_bw()
 ```
-And how the 1 second VeDBA Travis calculated compares to the rolling VeDBA. I added an line for y = x to show what you'd expect if both methods were equal. Previous method is under-estimating VeDBA and not capturing the full range of available values. 
+
+And how the 1 second VeDBA Travis calculated compares to the rolling VeDBA. I added an line for y = x to show what you'd expect if both methods were equal. Previous method is under-estimating VeDBA since it didn't remove static acceleration, and doesn't capture the full range of available values. 
 ```{r}
 dat %>% 
   ggplot()+
@@ -163,8 +165,6 @@ p0 <- ggplot(dat)+
   theme_bw()
 ggplotly(p0)
 ```
-
-
 
 
 I'll pull out a few sections from the first plot to see what it looks like in the transition between flying and roosting.
