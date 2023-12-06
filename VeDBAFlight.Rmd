@@ -106,10 +106,6 @@ getFrequency <- function(variable, WBFwindow, frequency, sample, threshold) {
   return(output)
 }
 
-<<<<<<< HEAD
-=======
-
->>>>>>> e820a0394dc5808dd6b6a186a407bbae5dbbad3f
 ```
 
 Use that function to add a continuously smoothed VeDBA and kick out a new data frame. There will be some now columns added as well for the different steps in calculations
