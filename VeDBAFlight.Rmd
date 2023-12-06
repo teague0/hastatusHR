@@ -76,7 +76,7 @@ getFrequency <- function(variable, WBFwindow, frequency, sample, threshold) {
   for (i in calcs) {
     # Prepare data for fft
     sampInt <- (i-floor(windowWidth/2)):((i-floor(windowWidth/2)) + windowWidth - 1)
-    sampInt<- (i-floor(windowWidth/2)):((i-floor(windowWidth/2)) + windowWidth - 1)
+    sampInt <- (i-floor(windowWidth/2)):((i-floor(windowWidth/2)) + windowWidth - 1)
     ddd <- axis[sampInt]
     ddd <- ts(data = ddd, start = 1, frequency = frequency)
     # Create indices for outputting the data
