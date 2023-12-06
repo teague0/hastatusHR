@@ -28,18 +28,21 @@ Here is a function that specifies sampling frequency and the duration of the win
 ```{r}
 vedba <- function(acc, samplingFreq, windowSize){
   #Find mean of each axis over the sampling window. This is used as static ACC 
-  acc$x0 <- roll_mean(acc$X, width = samplingFreq*windowSize, na_restore = TRUE)
-  acc$y0 <- roll_mean(acc$Y, width = samplingFreq*windowSize, na_restore = TRUE)
-  acc$z0 <- roll_mean(acc$Z, width = samplingFreq*windowSize, na_restore = TRUE)
+  acc$staticX <- roll_mean(acc$X, width = samplingFreq*windowSize, na_restore = TRUE)
+  acc$staticY <- roll_mean(acc$Y, width = samplingFreq*windowSize, na_restore = TRUE)
+  acc$staticZ <- roll_mean(acc$Z, width = samplingFreq*windowSize, na_restore = TRUE)
   
   #Subtract off the static from total ACC to find dynamic ACC
-  acc$x1 <- acc$X - acc$x0
-  acc$y1 <- acc$Y - acc$y0
-  acc$z1 <- acc$Z - acc$z0
+  acc$dynamicX <- acc$X - acc$staticX
+  acc$dynamicY <- acc$Y - acc$staticY
+  acc$dynamicZ <- acc$Z - acc$staticZ
+  
+  #Calculate pitch
+  acc$pitch <- atan(acc$staticX/(sqrt((acc$staticY^2)+(acc$staticZ^2))))*(180/pi)
   
   #Calculate ODBA & VeDBA
   acc$ODBA <- abs(acc$x1) + abs(acc$y1) + abs(acc$z1)
-  acc$VeDBA <- sqrt((acc$x1)^2 + (acc$y1)^2 + (acc$z1)^2)
+  acc$VeDBA <- sqrt((acc$dynamicX)^2 + (acc$dynamicY)^2 + (acc$dynamicZ)^2)
   acc$VeDBA1s <- roll_mean(acc$VeDBA, width = windowSize, na_restore = TRUE)
   acc$VeDBA2s <- roll_mean(acc$VeDBA, width = windowSize*2, na_restore = TRUE)
   return(acc)
