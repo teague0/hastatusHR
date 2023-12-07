@@ -18,7 +18,7 @@ options(digits.secs = 3)
 
 #### VeDBA calculation
 
-I was a little curious when I saw that VeDBA was only a single value every second, instead of a rolling calculation where you can see how VeDBA change with every single 1/25th of a second. So this is recalcuated. 
+I was a little curious when I saw that VeDBA was only a single value every second, instead of a rolling calculation where you can see how VeDBA change with every single 1/25th of a second. So this is recalculated. 
 
 Also, it's more efficient to write a function that can be applied everywhere instead of having to hard code each variable. 
 
@@ -44,7 +44,7 @@ vedba <- function(acc, samplingFreq, windowSize){
   acc$pitch <- atan(acc$staticY/(sqrt((acc$staticX^2)+(acc$staticZ^2))))*(180/pi)
   
   #Calculate ODBA & VeDBA
-  acc$ODBA <- abs(acc$dynamicX) + abs(acc$dynamicY) + abs(acc$dynamicY)
+  acc$ODBA <- abs(acc$dynamicX) + abs(acc$dynamicY) + abs(acc$dynamicZ)
   acc$VeDBA <- sqrt((acc$dynamicX)^2 + (acc$dynamicY)^2 + (acc$dynamicZ)^2)
   acc$VeDBA1s <- roll_mean(acc$VeDBA, width = windowSize, na_restore = TRUE)
   acc$VeDBA2s <- roll_mean(acc$VeDBA, width = windowSize*2, na_restore = TRUE)
@@ -186,10 +186,19 @@ p1 <- ggplot(d1)+
   geom_path(aes(x = Timestamp, y = Y), color = "green", alpha = 0.5)+
   geom_path(aes(x = Timestamp, y = Z), color = "blue", alpha = 0.5)+
   geom_path(aes(x = Timestamp, y = VeDBA1s), color = "black", alpha = 0.7)+
-  #geom_path(aes(x = Timestamp, y = pitch), color = "purple", alpha = 0.7)+
   theme_bw()
 ggplotly(p1)  
 ```
+
+The same figure, but only showing pitch over time. Really negative pitches show bats hanging, and pitchn above 0 shows bats with a relatively horizontal body position. I'm not sure if this is going to be any more effective than 
+
+```{r}
+p1p <- ggplot(d1)+
+  geom_path(aes(x = Timestamp, y = pitch1s), color = "springgreen4", alpha = 0.5)+
+  theme_bw()
+ggplotly(p1p)  
+```
+
 
 This is a bat hanging and probably scratching to make the repeated up and down of acceleration that I thought looked like flying
 ```{r}
@@ -201,6 +210,16 @@ p2 <- ggplot(d2)+
   theme_bw()
 ggplotly(p2)  
 ```
+
+Pitch for that chunk
+
+```{r}
+p2p <- ggplot(d2)+
+  geom_path(aes(x = Timestamp, y = pitch1s), color = "springgreen4", alpha = 0.5)+
+  theme_bw()
+ggplotly(p2p)  
+```
+
 
 This bat is mostly roosting with some scratching around. 
 ```{r}
