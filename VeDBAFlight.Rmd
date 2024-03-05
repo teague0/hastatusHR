@@ -55,7 +55,7 @@ vedba <- function(acc, samplingFreq, windowSize){
 ###########################################
 # From Patterson et al 2019  DOI: 10.1002/ece3.4740 
 # Function to calculate peak frequency in a time series of data over a moving 
-# window. If the heave axis is used, the ouput is the wing beat frequency.
+# window. If the heave axis is used, the output is the wing beat frequency.
 # The data are output as a vector or frequencies. The code is designed to only 
 # calculate peak frequency at regular sample intervals to reduce 
 # computation time; however, peak frequency can be calculated for each row by 
@@ -119,6 +119,7 @@ hours3 <- fread(here("processedData", "travisData", "ThreeHours.csv"))
 
 #add in VeDBA
 dat <- vedba(hours3, 25, 1)
+
 ```
 
 Plot what we have. We can see VeDBA over time.
@@ -250,14 +251,14 @@ ggplotly(p4)
 
 ### Flight durations
 
-As a first pass, rough classification I'm going to classify flight using 1s smoothed y > -0.5 & *2s* smoothed VeDBA > 0.2. Using 2s VeDBA brings up the average a bit compared to 1s VeDBA in the plot below. Z is blue, y0 is green, 1s VeDBA is black, 2s VeDBA is purple.
+As a first pass, rough classification I'm going to classify flight using 1s smoothed static y > -0.5 & *2s* smoothed VeDBA > 0.2. Using 2s VeDBA brings up the average a bit compared to 1s VeDBA in the plot below. Z is blue, y0 is green, 1s VeDBA is black, 2s VeDBA is purple.
 
 ```{r}
 p5 <- ggplot(d1)+
   geom_path(aes(x = Timestamp, y = Z), color = "blue", alpha = 0.5)+
   geom_path(aes(x = Timestamp, y = VeDBA1s), color = "black", alpha = 0.5)+
-  geom_path(aes(x = Timestamp, y = VeDBA2s), color = "purple", alpha = 0.3)+
-  geom_path(aes(x = Timestamp, y = y0), color = "green", alpha = 0.5)+
+  geom_path(aes(x = Timestamp, y = X), color = "red", alpha = 0.3)+
+  geom_path(aes(x = Timestamp, y = Y), color = "green", alpha = 0.5)+
   theme_bw()
 ggplotly(p5)  
 ```
@@ -265,7 +266,7 @@ ggplotly(p5)
 I'll classify flight, and then if there are some small blips where they probably are flying, but change posture to drop down to the trees or have a 1-2 s glide.
 
 ```{r}
-dat <- dat %>% mutate(behave = ifelse(y0 > -0.5 & VeDBA2s > 0.2, "flying", "not flying"))
+dat <- dat %>% mutate(behave = ifelse(staticY > -0.5 & VeDBA2s > 0.2, "flying", "not flying"))
 
 #re-extract those example chunks
 #big values in the start. Definite flight
@@ -277,6 +278,13 @@ d1 <- dat %>% filter(Timestamp > ymd_hms("2023-08-14 20:45:54") & Timestamp < ym
 d2 <- dat %>% filter(Timestamp > ymd_hms("2023-08-14 22:07:51") & Timestamp < ymd_hms("2023-08-14 22:17:00"))
 
 d3 <- dat %>% filter(Timestamp > ymd_hms("2023-08-14 22:39:33") & Timestamp < ymd_hms("2023-08-14 22:50:00"))
+
+
+d0$wb <- getFrequency(d0$Z, 1, 25, 1, 2)
+d0 %>% ggplot()+
+  geom_path(aes(x = Timestamp, y = Z), color= "blue")+
+  geom_path(aes(x = Timestamp, y = wb), color = "pink")+
+  theme_bw()
 
 ```
 
@@ -347,7 +355,7 @@ Add the durations back to the main dataframe and start aggregating sequences.
 
 ```{r}
  
-
+"flight" <- dat$behave[dat$Timestamp>"2023-08-19 23:23:23" & dat$Timestamp< "2023-08-19 23:24:23"]
 
 ```
 
