@@ -49,7 +49,14 @@ library(mgcv)
 
 allBatsHQ <- allBats %>% filter(QI %in% (c(0,1)))
 
-m1 <- lmer(HR_bpm~VeDBA1min + (1|TagID)+ (1|date), data = allBatsHQ)
+noQuickRest <- allBatsHQ %>% filter(rest_duration > 59 | flight_duration > 30)
+
+ggplot(noQuickRest)+
+  geom_point(aes(y = HR_bpm, x = VeDBA1min, color = TagID), alpha = 0.6)
+
+
+m1 <- lmer(HR_bpm~VeDBA1min + behave+duration + (1|TagID), data = noQuickRest)
+
 m2 <- lmer(HR_bpm~VeDBA1min + (1|TagID), data = allBatsHQ)
 Anova(m1)
 summary(m1)
@@ -74,9 +81,9 @@ g1_pred %>% plot(series = "VeDBA1min")
 
 #This doesn't do anything.
 b1 <- bam(HR_bpm~s(VeDBA1min) + s(TagID, bs = "re"), 
-           data = allBatsHQ)
+           data = noQuickRest)
 b2 <- bam(HR_bpm~s(VeDBA1min, by = behave, k=6) + s(TagID, bs = "re"), 
-          data = allBatsHQ)
+          data = noQuickRest)
 
 b3 <- bam(HR_bpm~s(VeDBAmean) + s(TagID, bs = "re"), 
           data = allBatsHQ)
@@ -89,7 +96,7 @@ b1_pred %>% plot(series = "VeDBA1min")
 b1_pred %>% plot("VeDBA1min", "TagID")
 b1_pred %>% plot(select = 3)
 
-ggplot(allBatsHQ)+
+ggplot(noQuickRest)+
   geom_point(aes(x = VeDBA1min, y = HR_bpm, color = TagID), alpha = 0.5)+
   stat_smooth(aes(x = VeDBA1min, y = HR_bpm), data = b1_pred)+
   theme(legend.position = "none")
@@ -107,4 +114,18 @@ plot_smooth(b1_pred, view="VeDBA1min", cond=list(Group="TagID"),
 
 ares <- fread("processedData/travisData/allDat/AresTotal29.csv")
 hist(ares$flight_duration)
+
+
+tmp <- fread(filenames[5])
+hist(tmp$rest_duration, breaks = "FD")
+
+ggplot(noQuickRest)+
+  geom_boxplot(aes(x = behave, y = VeDBA1min, group = behave))
            
+
+ggplot(allBatsHQ)+
+  geom_boxplot(aes(x = hour(Timestamp), y = HR_bpm, group = hour(Timestamp)))
+
+ggplot(allBatsHQ)+
+  geom_boxplot(aes(x = hour(Timestamp), y = temp, group = hour(Timestamp)))
+         
