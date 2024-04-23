@@ -120,6 +120,8 @@ gpsLX <- lapply(gpsL, function(x){
 
 gps_df <- rbindlist(gpsLX)
 
+write.csv(gps_df, file = "./processedData/GPS_allbats20240418.csv", row.names = FALSE)
+
 hist(gps_df$airspeed, breaks="FD")
 #From O'Mara & Dechmann 2023:
 #minimum power: 6.81 ± 0.21 m/s
