@@ -29,7 +29,7 @@ for(i in 2:length(filter1minFiles)){
 write.csv(allBats, file = "AllBatsCombined1Min.csv", row.names = FALSE)
 
 
-allBats <- fread("AllBatsCombined1Min.csv")
+allBats <- fread("./processedData/AllBatsCombined1Min.csv")
 allBats$date <- date(allBats$Timestamp)
 allBats$TagID <- as.factor(allBats$TagID)
 allBats$behave <- as.factor(allBats$behave)
@@ -51,8 +51,17 @@ allBatsHQ <- allBats %>% filter(QI %in% (c(0,1)))
 
 noQuickRest <- allBatsHQ %>% filter(rest_duration > 59 | flight_duration > 30)
 
+nightOnly <- noQuickRest %>% filter(hour(Timestamp) > 18 | hour(Timestamp)<6)
+
+ggplot(nightOnly)+
+  geom_point(aes(y = HR_bpm, x = VeDBA1min, color = TagID), alpha = 0.6)
+
 ggplot(noQuickRest)+
   geom_point(aes(y = HR_bpm, x = VeDBA1min, color = TagID), alpha = 0.6)
+
+ggplot(allBatsHQ)+
+  geom_point(aes(y = HR_bpm, x = VeDBA1min, color = TagID), alpha = 0.6)
+
 
 
 m1 <- lmer(HR_bpm~VeDBA1min + behave+duration + (1|TagID), data = noQuickRest)
