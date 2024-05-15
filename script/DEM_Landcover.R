@@ -91,5 +91,8 @@ ggplot()+
 
 #Annotate GPS with DEM elevation & Landcover
 gps_lc <- extract(lc_region, gps_utm_sf)
+gps_dem <- extract(dem_region, gps_utm_sf)
+gps_utm_sf$landcover <- gps_lc$Classvalue
+gps_utm_sf$dem.elevation <- gps_dem$Pma_DEM_30m
 
 
